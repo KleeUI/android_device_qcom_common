@@ -118,11 +118,19 @@ $(MODULE_KP_COMBINED_TARGET): $(foreach file,$(LOCAL_SRC_FILES), \
 						  $(error File: $(file) doesn't exist)))
 KERNEL_PREBUILT_DIR ?= device/qcom/$(TARGET_BOARD_PLATFORM)-kernel
 
+KLEE_INLINE_KERNEL_KIT_TARGET :=
+ifneq ($(strip $(TARGET_KERNEL_BUILD_CONFIG)),)
+ifneq ($(strip $(KLEE_KERNEL_IMAGE)),)
+KERNEL_PREBUILT_DIR := $(KLEE_KERNEL_DIST)
+KLEE_INLINE_KERNEL_KIT_TARGET := $(KLEE_KERNEL_IMAGE)
+endif
+endif
+
 # Use $(wildcard $(KERNEL_PREBUILT_DIR)/.config) as an indicator of KERNEL_KIT support
 # KERNEL_KIT support removes the requirement on a full prebuilt kernel platform output tree,
 # instead just the prebuilt kernel platform DIST_DIR. The DIST_DIR is copied to
 # device/qcom/*-kernel by prepare_vendor.sh.
-ifneq ($(wildcard $(KERNEL_PREBUILT_DIR)/.config),)
+ifneq ($(strip $(wildcard $(KERNEL_PREBUILT_DIR)/.config)$(KLEE_INLINE_KERNEL_KIT_TARGET)),)
 
 # We need to run make modules_prepare before compiling out-of-tree modules
 # As with other Kbuild commands, there should only be one build command running modules_prepare,
@@ -131,7 +139,11 @@ MODULE_KP_COMMON_TARGET := $(KP_DLKM_INTERMEDIATE)/build.timestamp
 ifndef $(MODULE_KP_COMMON_TARGET)_RULE
 $(MODULE_KP_COMMON_TARGET)_RULE := 1
 
+ifneq ($(KLEE_INLINE_KERNEL_KIT_TARGET),)
+$(MODULE_KP_COMMON_TARGET): $(KLEE_INLINE_KERNEL_KIT_TARGET)
+else
 $(MODULE_KP_COMMON_TARGET): $(KERNEL_PREBUILT_DIR)/.config $(KERNEL_PREBUILT_DIR)/Module.symvers
+endif
 	(cd $(KERNEL_PLATFORM_PATH) && \
 	    OUT_DIR=$(KERNEL_PLATFORM_TO_ROOT)/$(KP_DLKM_INTERMEDIATE)/kernel_platform \
 	    KERNEL_KIT=$(KERNEL_PLATFORM_TO_ROOT)/$(KERNEL_PREBUILT_DIR) \
