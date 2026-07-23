@@ -24,6 +24,13 @@ ifeq ($(LOCAL_MODULE_KBUILD_NAME),)
 endif
 LOCAL_MODULE_KBUILD_NAME := $(strip $(LOCAL_MODULE_KBUILD_NAME))
 
+# Symbol tables are dependency-only build artifacts. Multiple external module
+# trees generate a file with this same name, so installing them into the shared
+# DLKM directory would create conflicting Make targets.
+ifeq ($(LOCAL_MODULE_KBUILD_NAME),Module.symvers)
+    LOCAL_UNINSTALLABLE_MODULE := true
+endif
+
 # See binary.mk and base_rules.mk
 LOCAL_REQUIRED_MODULES += $(KBUILD_REQUIRED_KOS)
 ifdef RECORD_ALL_DEPS
