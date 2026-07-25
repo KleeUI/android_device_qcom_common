@@ -154,6 +154,7 @@ endif
 	(cd $(KERNEL_PLATFORM_PATH) && \
 	    OUT_DIR=$(KERNEL_PLATFORM_TO_ROOT)/$(KP_DLKM_INTERMEDIATE)/kernel_platform \
 	    KERNEL_KIT=$(KERNEL_PLATFORM_TO_ROOT)/$(KERNEL_PREBUILT_DIR) \
+	    $(if $(KLEE_INLINE_KERNEL_KIT_TARGET),BUILD_CONFIG=$(TARGET_KERNEL_BUILD_CONFIG)) \
 	    ./build/build_module.sh $(kbuild_options) \
 	    ANDROID_BUILD_TOP=$$(realpath $$(pwd)/$(KERNEL_PLATFORM_TO_ROOT)) \
 	)
@@ -194,6 +195,7 @@ $(MODULE_KP_COMBINED_TARGET): $(MODULE_KP_COMMON_TARGET) $(sort $(foreach m,$(KB
 	    TARGET_BOARD_PLATFORM=$(platform) \
 	    SUBTARGET_REGEX=$(subtarget_re) \
 	    EXTRA_DDK_ARGS="$(extra_args)" \
+	    $(if $(KLEE_INLINE_KERNEL_KIT_TARGET),BUILD_CONFIG=$(TARGET_KERNEL_BUILD_CONFIG)) \
 	    $(if $(kbuild_symvers),KBUILD_EXTRA_SYMBOLS="$(addprefix $${ANDROID_BUILD_TOP}/,$(kbuild_symvers))") \
 	    $(if $(required_kos),KCFLAGS="$(sort $(foreach d,$(required_kos),$(patsubst -I%,-I$${ANDROID_BUILD_TOP}/%,$(EXPORTS.$d.FLAGS))))") \
 	    ./build/build_module.sh $(kbuild_options) \
