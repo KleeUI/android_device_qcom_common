@@ -429,26 +429,80 @@ esac
 #
 # Make modem config folder and copy firmware config to that folder for RIL
 #
-if [ -f /data/vendor/modem_config/ver_info.txt ]; then
-    prev_version_info=`cat /data/vendor/modem_config/ver_info.txt`
-else
-    prev_version_info=""
-fi
+modem_config_tree_is_complete()
+{
+    [ -f "$1/mcfg_hw/oem_hw.txt" ] &&
+        [ -f "$1/mcfg_sw/oem_sw.txt" ]
+}
 
-cur_version_info=`cat /vendor/firmware_mnt/verinfo/ver_info.txt`
-if [ ! -f /vendor/firmware_mnt/verinfo/ver_info.txt -o "$prev_version_info" != "$cur_version_info" ]; then
-    # add W for group recursively before delete
-    chmod g+w -R /data/vendor/modem_config/*
-    rm -rf /data/vendor/modem_config/*
-    # preserve the read only mode for all subdir and files
-    cp --preserve=m -dr /vendor/firmware_mnt/image/modem_pr/mcfg/configs/* /data/vendor/modem_config
-    cp --preserve=m -d /vendor/firmware_mnt/verinfo/ver_info.txt /data/vendor/modem_config/
-    cp --preserve=m -d /vendor/firmware_mnt/image/modem_pr/mbn_ota.txt /data/vendor/modem_config/
-    # the group must be root, otherwise this script could not add "W" for group recursively
-    chown -hR radio.root /data/vendor/modem_config/*
+stage_modem_config()
+{
+    modem_config_source=/vendor/firmware_mnt/image/modem_pr/mcfg/configs
+    modem_config_source_version=/vendor/firmware_mnt/verinfo/ver_info.txt
+    modem_config_source_ota=/vendor/firmware_mnt/image/modem_pr/mbn_ota.txt
+    modem_config_target=/data/vendor/modem_config
+    modem_config_refresh=0
+
+    if ! modem_config_tree_is_complete "$modem_config_source" ||
+        [ ! -f "$modem_config_source_version" ] ||
+        [ ! -f "$modem_config_source_ota" ]; then
+        log -t init.qcom.sh "modem config source is incomplete; radio staging deferred"
+        return 1
+    fi
+
+    if ! modem_config_tree_is_complete "$modem_config_target" ||
+        [ ! -f "$modem_config_target/ver_info.txt" ] ||
+        [ ! -f "$modem_config_target/mbn_ota.txt" ]; then
+        modem_config_refresh=1
+    elif ! cmp -s "$modem_config_source_version" \
+        "$modem_config_target/ver_info.txt" ||
+        ! cmp -s "$modem_config_source_ota" \
+        "$modem_config_target/mbn_ota.txt"; then
+        modem_config_refresh=1
+    fi
+
+    if [ "$modem_config_refresh" -eq 1 ]; then
+        if ! mkdir -p "$modem_config_target" ||
+            ! chmod u+w,g+w "$modem_config_target"; then
+            log -t init.qcom.sh "cannot prepare modem config target"
+            return 1
+        fi
+
+        chmod -R u+w,g+w "$modem_config_target"/* 2>/dev/null || true
+        if ! rm -rf "$modem_config_target"/* ||
+            ! cp --preserve=m -dr "$modem_config_source"/. \
+                "$modem_config_target"/ ||
+            ! cp --preserve=m -d "$modem_config_source_version" \
+                "$modem_config_target/ver_info.txt" ||
+            ! cp --preserve=m -d "$modem_config_source_ota" \
+                "$modem_config_target/mbn_ota.txt"; then
+            log -t init.qcom.sh "failed to refresh modem config target"
+            return 1
+        fi
+    fi
+
+    if ! modem_config_tree_is_complete "$modem_config_target" ||
+        [ ! -f "$modem_config_target/ver_info.txt" ] ||
+        [ ! -f "$modem_config_target/mbn_ota.txt" ]; then
+        log -t init.qcom.sh "modem config target verification failed"
+        return 1
+    fi
+
+    if ! chown -hR radio.root "$modem_config_target" ||
+        ! chmod -R g-w "$modem_config_target" ||
+        ! chmod 0550 "$modem_config_target"; then
+        log -t init.qcom.sh "failed to secure modem config target"
+        return 1
+    fi
+
+    return 0
+}
+
+if stage_modem_config; then
+    setprop ro.vendor.ril.mbn_copy_completed 1
+else
+    log -t init.qcom.sh "modem config staging did not complete"
 fi
-chmod g-w /data/vendor/modem_config
-setprop ro.vendor.ril.mbn_copy_completed 1
 
 #check build variant for printk logging
 #current default minimum boot-time-default
