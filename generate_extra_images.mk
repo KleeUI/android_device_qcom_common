@@ -123,6 +123,11 @@ endif
 #----------------------------------------------------------------------
 ifneq ($(strip $(TARGET_NO_KERNEL)),true)
 ifeq ($(strip $(BOARD_KERNEL_SEPARATED_DTBO)),true)
+# A source-built Klee kernel owns the DTBO image and publishes it in its
+# kernel distribution directory. Do not also instantiate Qualcomm's legacy
+# mkdtimg rule: it would define the same target a second time and, before
+# KERNEL_OUT is initialized, can even attempt to create /arch on the host.
+ifneq ($(strip $(KLEE_SOURCE_DTB_REQUIRED)),true)
 
 MKDTIMG := $(HOST_OUT_EXECUTABLES)/mkdtimg$(HOST_EXECUTABLE_SUFFIX)
 
@@ -144,6 +149,7 @@ endef
 $(BOARD_PREBUILT_DTBOIMAGE): $(MKDTIMG) $(INSTALLED_KERNEL_TARGET)
 	$(build-dtboimage-target)
 
+endif
 endif
 endif
 
